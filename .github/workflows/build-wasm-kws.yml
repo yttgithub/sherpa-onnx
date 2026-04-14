@@ -2,19 +2,17 @@ name: build-sherpa-onnx-wasm-kws
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
 
 jobs:
   build-kws-wasm:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
+      - name: Checkout sherpa-onnx
         uses: actions/checkout@v4
         with:
+          repository: k2-fsa/sherpa-onnx
+          ref: v1.12.13
           submodules: recursive
 
       - name: Install dependencies
@@ -43,35 +41,24 @@ jobs:
         shell: bash
         run: |
           cd wasm/kws/assets
-
           wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
           tar xf sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
-          rm sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
-
           mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx ./
           mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.onnx ./
           mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.onnx ./
           mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt ./
           mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/keywords.txt ./
-
           rm -rf sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01
+          rm -f sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
 
-          ls -lh
-
-      - name: Show emsdk version
-        shell: bash
-        run: |
-          source emsdk/emsdk_env.sh
-          emcc -v
-
-      - name: Build sherpa-onnx KWS wasm
+      - name: Build KWS wasm
         shell: bash
         run: |
           source emsdk/emsdk_env.sh
           chmod +x ./build-wasm-simd-kws.sh
           ./build-wasm-simd-kws.sh
 
-      - name: Upload artifacts
+      - name: Upload wasm artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sherpa-onnx-wasm-kws
