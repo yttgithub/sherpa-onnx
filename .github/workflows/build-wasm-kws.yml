@@ -48,13 +48,12 @@ jobs:
 
       - name: Patch build script
         run: |
-          # 防止内存溢出
+          # 1. 降低编译并发数，防止 GitHub Action 内存不足
           sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
           
-          # 修复 std::filesystem 符号找不到的问题（强制开启 C++ 异常，使用完整 libc++）
-          find . -type f -name "CMakeLists.txt" -exec sed -i 's/-fno-exceptions/-fexceptions/g' {} +
-          find . -type f -name "*.cmake" -exec sed -i 's/-fno-exceptions/-fexceptions/g' {} +
-          sed -i 's/-DCMAKE_BUILD_TYPE=Release/-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-fexceptions" -DCMAKE_EXE_LINKER_FLAGS="-fexceptions -s DISABLE_EXCEPTION_CATCHING=0"/g' build-wasm-simd-kws.sh
+          # 2. 将 onnxruntime 降级到 1.20.0（解决 1.24.4 的 filesystem 报错，且 1.20.0 拥有兼容的静态库下载链接）
+          find cmake -name "*.cmake" -exec sed -i 's/1.24.4/1.20.0/g' {} +
+          sed -i 's/1.24.4/1.20.0/g' build-wasm-simd-kws.sh
 
       - name: Build WASM
         run: |
