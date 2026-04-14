@@ -53,7 +53,7 @@ cmake \
   -DSHERPA_ONNX_ENABLE_BINARY=OFF \
   -DSHERPA_ONNX_LINK_LIBSTDCPP_STATICALLY=OFF \
   ..
-make -j8
+make -j2
 make install
 
 ls -lh install/bin/wasm
