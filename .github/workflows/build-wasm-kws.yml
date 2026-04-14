@@ -1,11 +1,6 @@
 name: Build WASM KWS
 on:
   workflow_dispatch:
-    inputs:
-      emsdk_version:
-        description: 'emsdk version to try'
-        required: true
-        default: '3.1.58'
 
 jobs:
   build:
@@ -36,7 +31,7 @@ jobs:
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: ${{ github.event.inputs.emsdk_version }}
+          version: 3.1.53
 
       - name: Download and prepare model
         run: |
@@ -50,6 +45,11 @@ jobs:
           cp ${MODEL}/tokens.txt ./
           cp ${MODEL}/en.phone   ./
           rm -rf ${MODEL}
+
+      - name: Check onnxruntime version in cmake
+        run: |
+          grep -r "onnxruntime" cmake/ --include="*.cmake" | grep -i "version\|1\." | head -20
+          grep -r "ONNXRUNTIME_VERSION\|onnxruntime_version\|1\.2" cmake/ --include="*.cmake" | head -20
 
       - name: Patch build script
         run: |
