@@ -1,5 +1,4 @@
 name: Build WASM KWS
-
 on:
   workflow_dispatch:
 
@@ -11,12 +10,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Free disk space and memory
+      - name: Free disk space and add swap
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo apt-get clean
+
+          # 关键：加 swap
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "=== 当前内存状态 ==="
+          free -h
 
       - name: Install dependencies
         run: |
@@ -53,5 +60,3 @@ jobs:
             build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-kws.js
             build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-wasm-kws-main.js
             build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-wasm-kws-main.wasm
-            build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-wasm-kws-main.data
-          retention-days: 7
