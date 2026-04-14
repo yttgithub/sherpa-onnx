@@ -39,21 +39,22 @@ jobs:
           wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
           tar xf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
           MODEL=sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
-          cp ${MODEL}/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx encoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp ${MODEL}/decoder-epoch-13-avg-2-chunk-16-left-64.onnx      decoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp ${MODEL}/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx  joiner-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp ${MODEL}/tokens.txt ./
-          cp ${MODEL}/en.phone   ./
-          rm -rf ${MODEL}
-
-      - name: Check onnxruntime version in cmake
-        run: |
-          grep -r "onnxruntime" cmake/ --include="*.cmake" | grep -i "version\|1\." | head -20
-          grep -r "ONNXRUNTIME_VERSION\|onnxruntime_version\|1\.2" cmake/ --include="*.cmake" | head -20
+          # 【修复点1】：加上了缺失的 MODEL 变量名，防止找不到路径报错
+          cp $MODEL/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx encoder-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp $MODEL/decoder-epoch-13-avg-2-chunk-16-left-64.onnx      decoder-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp $MODEL/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx  joiner-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp $MODEL/tokens.txt ./
+          cp $MODEL/en.phone   ./
+          rm -rf $MODEL
 
       - name: Patch build script
         run: |
+          # 降低编译并发数，防止 Github Action 内存不足被 Kill
           sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
+          
+          # 【修复点2】：全局批量降级 onnxruntime 版本，解决因为版本过高导致的 C++ 编译报错
+          find cmake -name "*.cmake" -exec sed -i 's/1.24.4/1.17.1/g' {} +
+          sed -i 's/1.24.4/1.17.1/g' build-wasm-simd-kws.sh
 
       - name: Build WASM
         run: |
