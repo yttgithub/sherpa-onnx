@@ -1,4 +1,4 @@
-#!/usr/bin/env  bash
+#!/usr/bin/env  bash 
 
 if [ x"$EMSCRIPTEN" == x"" ]; then
   if ! command -v emcc &> /dev/null; then
