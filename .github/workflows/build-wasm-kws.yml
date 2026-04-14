@@ -1,6 +1,11 @@
 name: Build WASM KWS
 on:
   workflow_dispatch:
+    inputs:
+      emsdk_version:
+        description: 'emsdk version to try'
+        required: true
+        default: '3.1.58'
 
 jobs:
   build:
@@ -31,7 +36,7 @@ jobs:
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.53
+          version: ${{ github.event.inputs.emsdk_version }}
 
       - name: Download and prepare model
         run: |
@@ -46,24 +51,16 @@ jobs:
           cp ${MODEL}/en.phone   ./
           rm -rf ${MODEL}
 
-      - name: Patch and debug
+      - name: Patch build script
         run: |
-          # 降低并行数
           sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
-
-          # 打印脚本末尾，确认实际内容长什么样
-          echo "=== 脚本末尾 10 行 ==="
-          tail -10 build-wasm-simd-kws.sh | cat -A
-
-          # 检查 emsdk 里有没有 c++fs 库
-          echo "=== 查找 c++fs 库 ==="
-          find $EMSCRIPTEN -name "*c++fs*" -o -name "*filesystem*" 2>/dev/null | head -20
 
       - name: Build WASM
         run: |
           ./build-wasm-simd-kws.sh
 
       - name: Upload artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: wasm-kws-dist
