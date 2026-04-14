@@ -49,6 +49,7 @@ jobs:
       - name: Build WASM
         run: |
           sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
+          sed -i 's/\.\./  -DCMAKE_EXE_LINKER_FLAGS="-lc++fs" \\\n  ../' build-wasm-simd-kws.sh
           ./build-wasm-simd-kws.sh
 
       - name: Upload artifact
