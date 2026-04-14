@@ -1,71 +1,58 @@
-name: Build WASM KWS
+name: build-sherpa-onnx-wasm-kws
+
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-kws-wasm:
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Add swap
-        uses: pierotofy/set-swap-space@master
         with:
-          swap-size-gb: 10
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo apt-get clean
+          submodules: recursive
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake python3 python3-pip wget
+          sudo apt-get install -y \
+            git \
+            cmake \
+            ninja-build \
+            python3 \
+            python3-pip \
+            curl \
+            wget \
+            tar
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.53
-
-      - name: Patch filesystem library
+      - name: Setup emsdk 3.1.53
+        shell: bash
         run: |
-          # 在 wasm/kws/CMakeLists.txt 末尾追加 filesystem 库链接
-          echo '' >> wasm/kws/CMakeLists.txt
-          echo 'target_link_options(sherpa-onnx-wasm-kws-main PRIVATE "-lc++fs")' >> wasm/kws/CMakeLists.txt
-          echo "=== 追加后末尾 5 行 ==="
-          tail -5 wasm/kws/CMakeLists.txt
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install 3.1.53
+          ./emsdk activate 3.1.53
 
-      - name: Download and prepare model
+      - name: Show emsdk version
+        shell: bash
         run: |
-          cd wasm/kws/assets
-          wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
-          tar xf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
-          MODEL=sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
-          cp ${MODEL}/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx encoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp ${MODEL}/decoder-epoch-13-avg-2-chunk-16-left-64.onnx      decoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp ${MODEL}/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx  joiner-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp ${MODEL}/tokens.txt ./
-          cp ${MODEL}/en.phone   ./
-          rm -rf ${MODEL}
+          source emsdk/emsdk_env.sh
+          emcc -v
 
-      - name: Build WASM
+      - name: Build sherpa-onnx KWS wasm
+        shell: bash
         run: |
-          sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
+          source emsdk/emsdk_env.sh
+          chmod +x ./build-wasm-simd-kws.sh
           ./build-wasm-simd-kws.sh
 
-      - name: Upload artifact
-        if: success()
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wasm-kws-dist
-          path: |
-            build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-kws.js
-            build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-wasm-kws-main.js
-            build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-wasm-kws-main.wasm
-            build-wasm-simd-kws/install/bin/wasm/kws/sherpa-onnx-wasm-kws-main.data
-          retention-days: 7
+          name: sherpa-onnx-wasm-kws
+          path: build-wasm-simd-kws/install/bin/wasm/
