@@ -9,9 +9,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # 【核心修复】：绕过目前崩溃的 master 分支，强制使用最近的一个编译完全正常的发行版
-          ref: v1.12.28
 
       - name: Add swap
         uses: pierotofy/set-swap-space@master
@@ -24,7 +21,6 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo apt-get clean
-          free -h
 
       - name: Install dependencies
         run: |
@@ -36,28 +32,30 @@ jobs:
         with:
           version: 3.1.53
 
+      - name: Patch filesystem library
+        run: |
+          # 在 wasm/kws/CMakeLists.txt 末尾追加 filesystem 库链接
+          echo '' >> wasm/kws/CMakeLists.txt
+          echo 'target_link_options(sherpa-onnx-wasm-kws-main PRIVATE "-lc++fs")' >> wasm/kws/CMakeLists.txt
+          echo "=== 追加后末尾 5 行 ==="
+          tail -5 wasm/kws/CMakeLists.txt
+
       - name: Download and prepare model
         run: |
           cd wasm/kws/assets
           wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
           tar xf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
           MODEL=sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
-          
-          # 【路径修复】：加上之前漏掉的变量前缀 $MODEL
-          cp $MODEL/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx encoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp $MODEL/decoder-epoch-13-avg-2-chunk-16-left-64.onnx      decoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp $MODEL/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx  joiner-epoch-12-avg-2-chunk-16-left-64.onnx
-          cp $MODEL/tokens.txt ./
-          cp $MODEL/en.phone   ./
-          rm -rf $MODEL
-
-      - name: Patch build script
-        run: |
-          # 降低并发编译，防止由于 Github Action 内存不足被直接杀进程
-          sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
+          cp ${MODEL}/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx encoder-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp ${MODEL}/decoder-epoch-13-avg-2-chunk-16-left-64.onnx      decoder-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp ${MODEL}/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx  joiner-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp ${MODEL}/tokens.txt ./
+          cp ${MODEL}/en.phone   ./
+          rm -rf ${MODEL}
 
       - name: Build WASM
         run: |
+          sed -i 's/make -j8/make -j2/' build-wasm-simd-kws.sh
           ./build-wasm-simd-kws.sh
 
       - name: Upload artifact
