@@ -1,4 +1,4 @@
-name: build-sherpa-onnx-wasm-kws-2025-model
+name: build-sherpa-onnx-wasm-kws-2025
 
 on:
   workflow_dispatch:
@@ -7,12 +7,20 @@ jobs:
   build-kws-wasm:
     runs-on: ubuntu-22.04
 
+    env:
+      SHERPA_TAG: v1.12.13
+      EMSDK_VERSION: 3.1.53
+      MODEL_PACKAGE: sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
+      ENC_NAME: encoder-epoch-13-avg-2-chunk-16-left-64.onnx
+      DEC_NAME: decoder-epoch-13-avg-2-chunk-16-left-64.onnx
+      JOIN_NAME: joiner-epoch-13-avg-2-chunk-16-left-64.onnx
+
     steps:
       - name: Checkout sherpa-onnx
         uses: actions/checkout@v4
         with:
           repository: k2-fsa/sherpa-onnx
-          ref: v1.12.13
+          ref: ${{ env.SHERPA_TAG }}
           submodules: recursive
 
       - name: Install dependencies
@@ -29,13 +37,13 @@ jobs:
             tar \
             xz-utils
 
-      - name: Setup emsdk 3.1.53
+      - name: Setup emsdk
         shell: bash
         run: |
           git clone https://github.com/emscripten-core/emsdk.git
           cd emsdk
-          ./emsdk install 3.1.53
-          ./emsdk activate 3.1.53
+          ./emsdk install "${EMSDK_VERSION}"
+          ./emsdk activate "${EMSDK_VERSION}"
 
       - name: Show emsdk version
         shell: bash
@@ -43,43 +51,60 @@ jobs:
           source emsdk/emsdk_env.sh
           emcc -v
 
+      - name: Patch wasm/kws to use 2025 model names
+        shell: bash
+        run: |
+          set -eux
+
+          sed -i "s/decoder-epoch-12-avg-2-chunk-16-left-64.onnx/${DEC_NAME}/g" wasm/kws/CMakeLists.txt
+
+          for file in wasm/kws/app.js wasm/kws/sherpa-onnx-kws.js; do
+            sed -i "s/encoder-epoch-12-avg-2-chunk-16-left-64.onnx/${ENC_NAME}/g" "$file"
+            sed -i "s/decoder-epoch-12-avg-2-chunk-16-left-64.onnx/${DEC_NAME}/g" "$file"
+            sed -i "s/joiner-epoch-12-avg-2-chunk-16-left-64.onnx/${JOIN_NAME}/g" "$file"
+
+            sed -i "s/encoder-epoch-20-avg-2-chunk-16-left-128.onnx/${ENC_NAME}/g" "$file"
+            sed -i "s/decoder-epoch-20-avg-2-chunk-16-left-128.onnx/${DEC_NAME}/g" "$file"
+            sed -i "s/joiner-epoch-20-avg-2-chunk-16-left-128.onnx/${JOIN_NAME}/g" "$file"
+          done
+
+          echo "=== model references after patch ==="
+          grep -R -n 'epoch-12\|epoch-13\|epoch-20' wasm/kws || true
+
       - name: Prepare 2025 KWS assets
         shell: bash
         run: |
+          set -eux
           cd wasm/kws/assets
 
-          wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
-          tar xf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
+          wget -q "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/${MODEL_PACKAGE}.tar.bz2"
+          tar xf "${MODEL_PACKAGE}.tar.bz2"
 
-          # 2025 模型文件重命名为 v1.12.13 这套 wasm 脚本期望的旧名字
-          cp sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/encoder-epoch-13-avg-2-chunk-16-left-64.onnx \
-             ./encoder-epoch-12-avg-2-chunk-16-left-64.onnx
+          cp "${MODEL_PACKAGE}/${ENC_NAME}" ./
+          cp "${MODEL_PACKAGE}/${DEC_NAME}" ./
+          cp "${MODEL_PACKAGE}/${JOIN_NAME}" ./
+          cp "${MODEL_PACKAGE}/tokens.txt" ./
+          cp "${MODEL_PACKAGE}/test_wavs/keywords.txt" ./keywords.txt
 
-          cp sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/decoder-epoch-13-avg-2-chunk-16-left-64.onnx \
-             ./decoder-epoch-12-avg-2-chunk-16-left-64.onnx
-
-          cp sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-16-left-64.onnx \
-             ./joiner-epoch-12-avg-2-chunk-16-left-64.onnx
-
-          cp sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/tokens.txt \
-             ./tokens.txt
-
-          cp sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/test_wavs/keywords.txt \
-             ./keywords.txt
-
-          rm -rf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
-          rm -f sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
-
+          echo "=== assets directory ==="
           ls -lh
+
+          echo "=== sha256 of files used for build ==="
+          sha256sum \
+            "${ENC_NAME}" \
+            "${DEC_NAME}" \
+            "${JOIN_NAME}" \
+            tokens.txt \
+            keywords.txt
 
       - name: Check required files
         shell: bash
         run: |
-          test -f wasm/kws/assets/encoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          test -f wasm/kws/assets/decoder-epoch-12-avg-2-chunk-16-left-64.onnx
-          test -f wasm/kws/assets/joiner-epoch-12-avg-2-chunk-16-left-64.onnx
-          test -f wasm/kws/assets/tokens.txt
-          test -f wasm/kws/assets/keywords.txt
+          test -f "wasm/kws/assets/${ENC_NAME}"
+          test -f "wasm/kws/assets/${DEC_NAME}"
+          test -f "wasm/kws/assets/${JOIN_NAME}"
+          test -f "wasm/kws/assets/tokens.txt"
+          test -f "wasm/kws/assets/keywords.txt"
 
       - name: Build KWS wasm
         shell: bash
@@ -88,7 +113,16 @@ jobs:
           chmod +x ./build-wasm-simd-kws.sh
           ./build-wasm-simd-kws.sh
 
-      - name: Show wasm output
+      - name: Print model references in build output
+        shell: bash
+        run: |
+          echo "=== source references ==="
+          grep -R -n 'epoch-12\|epoch-13\|epoch-20' wasm/kws || true
+
+          echo "=== built output references ==="
+          grep -R -n 'epoch-12\|epoch-13\|epoch-20' build-wasm-simd-kws || true
+
+      - name: Show wasm output files
         shell: bash
         run: |
           find build-wasm-simd-kws -maxdepth 5 -type f | sort
@@ -97,5 +131,5 @@ jobs:
       - name: Upload wasm artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sherpa-onnx-wasm-kws-2025-model
+          name: sherpa-onnx-wasm-kws-2025
           path: build-wasm-simd-kws/install/bin/wasm/
