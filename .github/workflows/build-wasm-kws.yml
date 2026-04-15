@@ -1,4 +1,4 @@
-name: build-sherpa-onnx-wasm-kws-2025
+name: build-sherpa-onnx-wasm-kws-2025-mixed-int8
 
 on:
   workflow_dispatch:
@@ -11,9 +11,6 @@ jobs:
       SHERPA_TAG: v1.12.13
       EMSDK_VERSION: 3.1.53
       MODEL_PACKAGE: sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
-      ENC_NAME: encoder-epoch-13-avg-2-chunk-16-left-64.onnx
-      DEC_NAME: decoder-epoch-13-avg-2-chunk-16-left-64.onnx
-      JOIN_NAME: joiner-epoch-13-avg-2-chunk-16-left-64.onnx
 
     steps:
       - name: Checkout sherpa-onnx
@@ -51,25 +48,29 @@ jobs:
           source emsdk/emsdk_env.sh
           emcc -v
 
-      - name: Patch wasm/kws to use 2025 model names
+      - name: Patch wasm/kws to use 2025 mixed int8 names
         shell: bash
         run: |
           set -eux
 
-          sed -i "s/decoder-epoch-12-avg-2-chunk-16-left-64.onnx/${DEC_NAME}/g" wasm/kws/CMakeLists.txt
+          # CMake 里只检查 decoder 是否存在，所以这里改成 2025 的 fp32 decoder
+          sed -i 's/decoder-epoch-12-avg-2-chunk-16-left-64.onnx/decoder-epoch-13-avg-2-chunk-16-left-64.onnx/g' wasm/kws/CMakeLists.txt
 
           for file in wasm/kws/app.js wasm/kws/sherpa-onnx-kws.js; do
-            sed -i "s/encoder-epoch-12-avg-2-chunk-16-left-64.onnx/${ENC_NAME}/g" "$file"
-            sed -i "s/decoder-epoch-12-avg-2-chunk-16-left-64.onnx/${DEC_NAME}/g" "$file"
-            sed -i "s/joiner-epoch-12-avg-2-chunk-16-left-64.onnx/${JOIN_NAME}/g" "$file"
+            if [ -f "$file" ]; then
+              # 2025 官方推荐：encoder=int8, decoder=fp32, joiner=int8
+              sed -i 's/encoder-epoch-12-avg-2-chunk-16-left-64.onnx/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx/g' "$file"
+              sed -i 's/decoder-epoch-12-avg-2-chunk-16-left-64.onnx/decoder-epoch-13-avg-2-chunk-16-left-64.onnx/g' "$file"
+              sed -i 's/joiner-epoch-12-avg-2-chunk-16-left-64.onnx/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx/g' "$file"
 
-            sed -i "s/encoder-epoch-20-avg-2-chunk-16-left-128.onnx/${ENC_NAME}/g" "$file"
-            sed -i "s/decoder-epoch-20-avg-2-chunk-16-left-128.onnx/${DEC_NAME}/g" "$file"
-            sed -i "s/joiner-epoch-20-avg-2-chunk-16-left-128.onnx/${JOIN_NAME}/g" "$file"
+              sed -i 's/encoder-epoch-20-avg-2-chunk-16-left-128.onnx/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx/g' "$file"
+              sed -i 's/decoder-epoch-20-avg-2-chunk-16-left-128.onnx/decoder-epoch-13-avg-2-chunk-16-left-64.onnx/g' "$file"
+              sed -i 's/joiner-epoch-20-avg-2-chunk-16-left-128.onnx/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx/g' "$file"
+            fi
           done
 
           echo "=== model references after patch ==="
-          grep -R -n 'epoch-12\|epoch-13\|epoch-20' wasm/kws || true
+          grep -R -n 'epoch-12\|epoch-13\|epoch-20\|int8' wasm/kws || true
 
       - name: Prepare 2025 KWS assets
         shell: bash
@@ -77,34 +78,39 @@ jobs:
           set -eux
           cd wasm/kws/assets
 
+          rm -f README.md
+
           wget -q "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/${MODEL_PACKAGE}.tar.bz2"
           tar xf "${MODEL_PACKAGE}.tar.bz2"
 
-          cp "${MODEL_PACKAGE}/${ENC_NAME}" ./
-          cp "${MODEL_PACKAGE}/${DEC_NAME}" ./
-          cp "${MODEL_PACKAGE}/${JOIN_NAME}" ./
+          # 官方 2025 组合：encoder=int8, decoder=fp32, joiner=int8
+          cp "${MODEL_PACKAGE}/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx" ./
+          cp "${MODEL_PACKAGE}/decoder-epoch-13-avg-2-chunk-16-left-64.onnx" ./
+          cp "${MODEL_PACKAGE}/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx" ./
           cp "${MODEL_PACKAGE}/tokens.txt" ./
           cp "${MODEL_PACKAGE}/test_wavs/keywords.txt" ./keywords.txt
 
-          echo "=== assets directory ==="
-          ls -lh
+          rm -rf "${MODEL_PACKAGE}"
+          rm -f "${MODEL_PACKAGE}.tar.bz2"
 
-          echo "=== sha256 of files used for build ==="
-          sha256sum \
-            "${ENC_NAME}" \
-            "${DEC_NAME}" \
-            "${JOIN_NAME}" \
-            tokens.txt \
-            keywords.txt
+          echo "=== assets directory after cleanup ==="
+          ls -lh
 
       - name: Check required files
         shell: bash
         run: |
-          test -f "wasm/kws/assets/${ENC_NAME}"
-          test -f "wasm/kws/assets/${DEC_NAME}"
-          test -f "wasm/kws/assets/${JOIN_NAME}"
-          test -f "wasm/kws/assets/tokens.txt"
-          test -f "wasm/kws/assets/keywords.txt"
+          test -f wasm/kws/assets/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx
+          test -f wasm/kws/assets/decoder-epoch-13-avg-2-chunk-16-left-64.onnx
+          test -f wasm/kws/assets/joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx
+          test -f wasm/kws/assets/tokens.txt
+          test -f wasm/kws/assets/keywords.txt
+
+      - name: Show assets directory size
+        shell: bash
+        run: |
+          du -sh wasm/kws/assets
+          find wasm/kws/assets -maxdepth 1 -type f | sort
+          find wasm/kws/assets -maxdepth 1 -type d | sort
 
       - name: Build KWS wasm
         shell: bash
@@ -117,10 +123,10 @@ jobs:
         shell: bash
         run: |
           echo "=== source references ==="
-          grep -R -n 'epoch-12\|epoch-13\|epoch-20' wasm/kws || true
+          grep -R -n 'epoch-12\|epoch-13\|epoch-20\|int8' wasm/kws || true
 
           echo "=== built output references ==="
-          grep -R -n 'epoch-12\|epoch-13\|epoch-20' build-wasm-simd-kws || true
+          grep -R -n 'epoch-12\|epoch-13\|epoch-20\|int8' build-wasm-simd-kws || true
 
       - name: Show wasm output files
         shell: bash
@@ -131,5 +137,5 @@ jobs:
       - name: Upload wasm artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sherpa-onnx-wasm-kws-2025
+          name: sherpa-onnx-wasm-kws-2025-mixed-int8
           path: build-wasm-simd-kws/install/bin/wasm/
