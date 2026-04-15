@@ -48,6 +48,48 @@ jobs:
           source emsdk/emsdk_env.sh
           emcc -v
 
+      - name: Verify CMakeLists before patch
+        shell: bash
+        run: |
+          echo "=== BEFORE PATCH ==="
+          grep -n 'INITIAL_MEMORY\|ALLOW_MEMORY_GROWTH\|MAXIMUM_MEMORY\|FORCE_FILESYSTEM' wasm/kws/CMakeLists.txt || true
+          sed -n '1,80p' wasm/kws/CMakeLists.txt
+
+      - name: Patch wasm memory settings
+        shell: bash
+        run: |
+          set -eux
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("wasm/kws/CMakeLists.txt")
+          text = p.read_text(encoding="utf-8")
+
+          old = 'set(MY_FLAGS "-s FORCE_FILESYSTEM=1 -s INITIAL_MEMORY=512MB -s ALLOW_MEMORY_GROWTH=1")'
+          new = 'set(MY_FLAGS "-s FORCE_FILESYSTEM=1 -s INITIAL_MEMORY=128MB -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=512MB")'
+
+          if old not in text:
+              raise SystemExit("Did not find the expected original MY_FLAGS line in wasm/kws/CMakeLists.txt")
+
+          text = text.replace(old, new, 1)
+          p.write_text(text, encoding="utf-8")
+          print("Patched MY_FLAGS successfully.")
+          PY
+
+      - name: Verify CMakeLists after patch
+        shell: bash
+        run: |
+          echo "=== AFTER PATCH ==="
+          grep -n 'INITIAL_MEMORY\|ALLOW_MEMORY_GROWTH\|MAXIMUM_MEMORY\|FORCE_FILESYSTEM' wasm/kws/CMakeLists.txt || true
+          sed -n '1,80p' wasm/kws/CMakeLists.txt
+
+          grep -q 'INITIAL_MEMORY=128MB' wasm/kws/CMakeLists.txt
+          grep -q 'ALLOW_MEMORY_GROWTH=1' wasm/kws/CMakeLists.txt
+          grep -q 'MAXIMUM_MEMORY=512MB' wasm/kws/CMakeLists.txt
+
+          echo "Memory settings verified."
+
       - name: Patch wasm/kws to use 2025 mixed int8 names
         shell: bash
         run: |
