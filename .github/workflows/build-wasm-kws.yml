@@ -1,4 +1,4 @@
-name: build-sherpa-onnx-wasm-kws
+name: build-sherpa-onnx-wasm-kws-latest
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: k2-fsa/sherpa-onnx
-          ref: v1.12.13
+          ref: v1.12.20
           submodules: recursive
 
       - name: Install dependencies
@@ -37,19 +37,19 @@ jobs:
           ./emsdk install 3.1.53
           ./emsdk activate 3.1.53
 
-      - name: Prepare KWS assets
+      - name: Prepare zh-en KWS assets
         shell: bash
         run: |
           cd wasm/kws/assets
-          wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
-          tar xf sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
-          mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx ./
-          mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.onnx ./
-          mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.onnx ./
-          mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt ./
-          mv sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/keywords.txt ./
-          rm -rf sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01
-          rm -f sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2
+          wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
+          tar xf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
+          mv sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/encoder-epoch-13-avg-2-chunk-16-left-64.onnx ./
+          mv sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/decoder-epoch-13-avg-2-chunk-16-left-64.onnx ./
+          mv sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-16-left-64.onnx ./
+          mv sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/tokens.txt ./
+          cp sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/test_wavs/keywords.txt ./
+          rm -rf sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20
+          rm -f sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
 
       - name: Build KWS wasm
         shell: bash
@@ -61,5 +61,5 @@ jobs:
       - name: Upload wasm artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sherpa-onnx-wasm-kws
+          name: sherpa-onnx-wasm-kws-latest
           path: build-wasm-simd-kws/install/bin/wasm/
